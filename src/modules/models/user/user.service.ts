@@ -1,56 +1,72 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import {
-  ErrorMessageEnum,
-  UNAUTHORIZED,
-} from '../../../common/constants/errors';
 import { BusinessException } from '../../../common/exceptions';
 import { BaseService } from '../../base/base.service';
 import { EncryptionAndHashService } from '../../encryptionAndHash/encrypttionAndHash.service';
-import { LoggerService } from '../../logger/logger.service';
-import { ChangePasswordDto } from './user.dto';
+import { ChangePasswordDto, UpdateUserDto } from './user.dto';
 import { User, UserDocument, UserModel } from './user.model';
+import { ErrorMessageEnum } from '../../../common/types';
+import { UserPayload } from './user.types';
+import hideOrOmitDeep from '../../../utils/hideOrOmitFields';
 
 @Injectable()
-export class UserService extends BaseService<
-  LoggerService,
-  UserDocument,
-  User
-> {
+export class UserService extends BaseService<UserDocument, User> {
   constructor(
     @InjectModel(UserModel.name)
     private readonly userModel: Model<UserDocument>,
     private readonly encryptionAndHashService: EncryptionAndHashService,
-    logger: LoggerService,
   ) {
-    super(userModel, logger);
+    super(userModel);
+  }
+
+  async findUserById(id: string): Promise<UserPayload> {
+    const user = await this.findById(id);
+    if (!user) {
+      return null;
+    }
+    return hideOrOmitDeep(user, ['password'], true) as UserPayload;
+  }
+
+  async updateUserById(
+    id: string,
+    updateDto: UpdateUserDto,
+  ): Promise<UserPayload> {
+    const updated = await this.updateById(id, updateDto);
+    return hideOrOmitDeep(updated, ['password'], true) as UserPayload;
   }
 
   async changePassword(
     userId: string,
     changePasswordDto: ChangePasswordDto,
-  ): Promise<User> {
+  ): Promise<UserPayload> {
     const user = await this.findById(userId);
 
     if (!user) {
-      throw new BusinessException(UNAUTHORIZED, ErrorMessageEnum.userNotFound);
+      throw new BusinessException(
+        ErrorMessageEnum.userNotFound,
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const { oldPassword, newPassword } = changePasswordDto;
 
-    const oldPasswordHash = await this.encryptionAndHashService.hash(
-      oldPassword,
-    );
+    if (oldPassword === newPassword) {
+      throw new BusinessException(
+        ErrorMessageEnum.oldPasswordEqualNewPassword,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const isOldPasswordValid = await this.encryptionAndHashService.compare(
-      oldPasswordHash,
+      changePasswordDto.oldPassword,
       user.password,
     );
 
     if (!isOldPasswordValid) {
       throw new BusinessException(
-        UNAUTHORIZED,
         ErrorMessageEnum.invalidOldPassword,
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -58,8 +74,10 @@ export class UserService extends BaseService<
       newPassword,
     );
 
-    return await this.updateById(user._id, {
+    const updated = await this.updateById(user._id, {
       password: newPasswordHash,
     });
+
+    return hideOrOmitDeep(updated, ['password'], true) as UserPayload;
   }
 }

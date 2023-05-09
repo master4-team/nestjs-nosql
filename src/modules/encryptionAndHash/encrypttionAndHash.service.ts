@@ -10,13 +10,12 @@ import {
 import { promisify } from 'util';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
+import { EncryptionPayload } from './types';
 
 @Injectable()
 export class EncryptionAndHashService {
   private readonly saltOrRounds: number;
   private readonly encryptionSecret: string;
-  private cipher: Cipher;
-  private decipher: Decipher;
   constructor(private readonly configService: ConfigService) {
     this.encryptionSecret = this.configService.get<string>(
       'encryptionAndHash.encryptionSecret',
@@ -24,25 +23,27 @@ export class EncryptionAndHashService {
     this.saltOrRounds = this.configService.get<number>(
       'encryptionAndHash.hashSaltOrRound',
     );
-    const iv = randomBytes(16);
-    promisify(scrypt)(this.encryptionSecret, 'salt', 32).then((key: Buffer) => {
-      this.cipher = createCipheriv('aes-256-ctr', key, iv);
-      this.decipher = createDecipheriv('aes-256-ctr', key, iv);
-    });
   }
 
-  encrypt(value: string): string {
-    return Buffer.concat([
-      this.cipher.update(value),
-      this.cipher.final(),
-    ]).toString('base64');
+  async encrypt(value: string): Promise<EncryptionPayload> {
+    const { iv, cipher } = await this.initCipher();
+
+    return {
+      iv,
+      encryptedData: Buffer.concat([
+        cipher.update(value),
+        cipher.final(),
+      ]).toString('base64'),
+    };
   }
 
-  decrypt(value: string): string {
+  async decrypt(value: string, iv: string): Promise<string> {
+    const decipher = await this.initDecipher(iv);
+
     const valueBuffer = Buffer.from(value, 'base64');
     return Buffer.concat([
-      this.decipher.update(valueBuffer),
-      this.decipher.final(),
+      decipher.update(valueBuffer),
+      decipher.final(),
     ]).toString();
   }
 
@@ -52,5 +53,29 @@ export class EncryptionAndHashService {
 
   async compare(value: string, hash: string): Promise<boolean> {
     return await bcrypt.compare(value, hash);
+  }
+
+  private async initCipher(): Promise<{ cipher: Cipher; iv: string }> {
+    const iv = randomBytes(16);
+
+    const key = (await promisify(scrypt)(
+      this.encryptionSecret,
+      'salt',
+      32,
+    )) as Buffer;
+
+    const cipher = createCipheriv('aes-256-ctr', key, iv);
+
+    return { cipher, iv: iv.toString('hex') };
+  }
+
+  private async initDecipher(iv: string): Promise<Decipher> {
+    const key = (await promisify(scrypt)(
+      this.encryptionSecret,
+      'salt',
+      32,
+    )) as Buffer;
+
+    return createDecipheriv('aes-256-ctr', key, Buffer.from(iv, 'hex'));
   }
 }

@@ -7,7 +7,7 @@ import {
 import { Request } from 'express';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { Response } from '../types';
+import { ResponseBody } from '../types';
 import { CORRELATIONID, TIMESTAMPS } from '../constants';
 import { DateTime } from 'luxon';
 
@@ -16,7 +16,7 @@ export class TransformResponseInterceptor implements NestInterceptor {
   intercept(
     context: ExecutionContext,
     next: CallHandler,
-  ): Observable<Response> {
+  ): Observable<ResponseBody> {
     return next.handle().pipe(
       map((data) => {
         const now = DateTime.now().toISO();
@@ -30,8 +30,8 @@ export class TransformResponseInterceptor implements NestInterceptor {
           correlationId: request.headers[CORRELATIONID] as string,
           timestamp: now,
           took: `${
-            DateTime.fromISO(now).millisecond -
-            DateTime.fromISO(request.headers[TIMESTAMPS] as string).millisecond
+            DateTime.fromISO(now).valueOf() -
+            DateTime.fromISO(request.headers[TIMESTAMPS] as string).valueOf()
           } ms`,
         };
       }),

@@ -1,4 +1,5 @@
 import {
+  HttpStatus,
   MiddlewareConsumer,
   Module,
   NestModule,
@@ -10,7 +11,6 @@ import { ErrorFilter } from './common/filters/error';
 import { CorrelationIdMiddleware } from './common/middlewares/correlationId';
 import { ConfigModule } from './modules/config/config.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { TokenModule } from './modules/models/token/token.module';
 import { UserModule } from './modules/models/user/user.module';
 import { TokenJwtModule } from './modules/jwt/token.jwt.module';
 import { RefreshTokenJwtModule } from './modules/jwt/refreshToken.jwt.module';
@@ -22,14 +22,13 @@ import { RoleGuard } from './modules/auth/guards/role';
 import { JwtAuthGuard } from './modules/auth/guards/jwt';
 import { LoggerModule } from './modules/logger/logger.module';
 import { ValidationError } from 'class-validator';
-import { VALIDATION_ERROR } from './common/constants/errors';
-import { BusinessException } from './common/exceptions';
+import { ValidationException } from './common/exceptions';
 import { FilterModule } from './modules/filter/filter.module';
 import { LoggingInterceptor } from './common/interceptors/logging';
 import { HealthModule } from './modules/health/health.module';
-import { AppController } from './app.controller';
 import { FilterQueryMiddleware } from './common/middlewares/filterQuery';
 import { CrudModule } from './modules/models/crud/crud.module';
+import { RefreshTokenModule } from './modules/models/refreshToken/refreshToken.module';
 
 @Module({
   imports: [
@@ -39,7 +38,7 @@ import { CrudModule } from './modules/models/crud/crud.module';
     RefreshTokenJwtModule,
     UserModule,
     AuthModule,
-    TokenModule,
+    RefreshTokenModule,
     EncryptionAndHashModule,
     LoggerModule,
     FilterModule,
@@ -73,11 +72,10 @@ import { CrudModule } from './modules/models/crud/crud.module';
         new ValidationPipe({
           transform: true,
           exceptionFactory: (errors: ValidationError[]) =>
-            new BusinessException(VALIDATION_ERROR(errors), null),
+            new ValidationException(errors, HttpStatus.BAD_REQUEST),
         }),
     },
   ],
-  controllers: [AppController],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

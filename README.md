@@ -32,6 +32,12 @@
 $ yarn install
 ```
 
+## Prepare husky
+
+```bash
+$ yarn prepare
+```
+
 ## Initialize database
 
 ```bash

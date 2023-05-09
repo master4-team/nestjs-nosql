@@ -8,17 +8,15 @@ import { Request } from 'express';
 import { map } from 'rxjs';
 import { LoggerService } from '../../modules/logger/logger.service';
 import getRequestInfo from '../../utils/requestInfo';
-import { generateCode } from '../../utils/codeGenerator';
 import { API_CONTEXT, PARSED_FILTER } from '../constants';
-import { Response } from '../types';
+import { ResponseBody } from '../types';
+import hideOrOmitDeep from '../../utils/hideOrOmitFields';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   constructor(private readonly logger: LoggerService) {}
 
   intercept(ctx: ExecutionContext, next: CallHandler) {
-    this.logger.setLogId(generateCode({ length: 8 }));
-
     const req = ctx.switchToHttp().getRequest() as Request;
     const target = ctx.getClass().name;
     const method = ctx.getHandler().name;
@@ -35,20 +33,23 @@ export class LoggingInterceptor implements NestInterceptor {
     this.logger.log_(`Invoking "${method}" method...`, target);
 
     return next.handle().pipe(
-      map((data: Response) => {
+      map((body: ResponseBody) => {
         this.logger.log_(`"${method}" method invoked successfully!`, target, {
           took: `${Date.now() - now} ms`,
-          data: data?.data,
+          data: hideOrOmitDeep(body?.data, ['accessToken', 'refreshToken']),
         });
         this.logger.log_(
           `${req.method} ${req.path} successfully!`,
           API_CONTEXT,
           {
             request: getRequestInfo(req),
-            response: data,
+            response: {
+              ...body,
+              data: hideOrOmitDeep(body?.data, ['accessToken', 'refreshToken']),
+            },
           },
         );
-        return data;
+        return body;
       }),
     );
   }

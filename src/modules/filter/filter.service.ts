@@ -1,24 +1,25 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { FilterOperators } from 'mongodb';
-import { FilterQuery, RegexOptions } from 'mongoose';
 import {
-  ErrorMessageEnum,
-  INVALID_FILTER_QUERY,
-} from '../../common/constants/errors';
+  FilterQuery,
+  ProjectionFields,
+  RegexOptions,
+  SortOrder,
+} from 'mongoose';
 import { BusinessException } from '../../common/exceptions';
 import { LoggerService } from '../logger/logger.service';
 import {
-  BaseFilter,
   Filter,
   FilterOperator,
   FilterOperatorEnum,
   FilterRequestQuery,
   FilterValue,
   ParsedFilterQuery,
-  Projections,
+  SelectedFields,
   Sort,
-} from './types';
+} from './filter.types';
 import getDateOrValue from '../../utils/getDateOrValue';
+import { ErrorMessageEnum } from '../../common/types';
 
 @Injectable()
 export class FilterService {
@@ -28,23 +29,19 @@ export class FilterService {
     try {
       const parsedFilterQuery: ParsedFilterQuery<T> = {};
       if (query.filter) {
-        parsedFilterQuery.filter = this.parseFilter(
-          this.parseFilterFromQueryString<T>(query.filter),
-        );
+        parsedFilterQuery.filter = this.parseFilter(query.filter);
       }
-      if (query.fields) {
-        parsedFilterQuery.projections = this.parseProjectionFromQueryString<T>(
-          query.fields,
-        );
+      if (query.select) {
+        parsedFilterQuery.projections = this.parseProjection<T>(query.select);
       }
       if (query.sort) {
-        parsedFilterQuery.sort = this.parseSortFromQueryString<T>(query.sort);
+        parsedFilterQuery.sort = this.parseSort<T>(query.sort);
       }
-      if (query.limit) {
-        parsedFilterQuery.limit = query.limit;
+      if (!isNaN(+query.limit)) {
+        parsedFilterQuery.limit = +query.limit;
       }
-      if (query.skip) {
-        parsedFilterQuery.skip = query.skip;
+      if (!isNaN(+query.skip)) {
+        parsedFilterQuery.skip = +query.skip;
       }
       return parsedFilterQuery;
     } catch (error) {
@@ -54,8 +51,8 @@ export class FilterService {
         FilterService.name,
       );
       throw new BusinessException(
-        INVALID_FILTER_QUERY,
         ErrorMessageEnum.invalidFilter,
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
@@ -80,7 +77,7 @@ export class FilterService {
       case FilterOperatorEnum.LTE:
         return { $lte: getDateOrValue(value as FilterValue) };
       case FilterOperatorEnum.LIKE:
-        return { $regex: /value/, $options: 'i' };
+        return { $regex: new RegExp(value as string), $options: 'i' };
       default:
         return { key: getDateOrValue(value) };
     }
@@ -102,7 +99,7 @@ export class FilterService {
     return operators;
   }
 
-  private parseBaseFilter<T>(filter: BaseFilter<T>): FilterQuery<T> {
+  private parseBaseFilter<T>(filter: Filter): FilterQuery<T> {
     const parsedBaseFilter: FilterQuery<T> = {};
     for (const key in filter) {
       if (typeof filter[key] === 'object' && filter[key] !== null) {
@@ -110,27 +107,25 @@ export class FilterService {
           filter[key] as FilterOperator,
         ) as FilterQuery<T>[keyof T];
       } else {
-        parsedBaseFilter[key] = getDateOrValue(filter[key]);
+        parsedBaseFilter[key as keyof T] = getDateOrValue(filter[key]);
       }
     }
     return parsedBaseFilter;
   }
 
-  private parseFilterFromQueryString<T>(filter: string): Filter<T> {
-    return JSON.parse(filter) as Filter<T>;
-  }
-
-  private parseFilter<T>(filter: Filter<T>): FilterQuery<T> {
+  private parseFilter<T>(filter: Filter): FilterQuery<T> {
     const parsedFilter: FilterQuery<T> = {};
     for (const key in filter) {
       if (typeof filter[key] === 'object' && filter[key] !== null) {
-        if (key === 'or' || key === 'nor') {
-          parsedFilter[`$${key}`] = filter[key].map((item: BaseFilter<T>) => {
-            return this.parseBaseFilter(item);
-          });
+        if (key === 'or' && Array.isArray(filter[key])) {
+          parsedFilter[`$${key}`] = (filter[key] as Filter[]).map(
+            (item: Filter) => {
+              return this.parseBaseFilter(item);
+            },
+          );
         } else {
           parsedFilter[key as keyof T] = this.parseOperator(
-            filter[key],
+            filter[key] as FilterOperator,
           ) as FilterQuery<T>[keyof T];
         }
       } else {
@@ -142,16 +137,18 @@ export class FilterService {
     return parsedFilter;
   }
 
-  private parseProjectionFromQueryString<T>(
-    projections: string,
-  ): Projections<T> {
-    return JSON.parse(projections);
+  private parseProjection<T>(
+    selectedFields: SelectedFields,
+  ): ProjectionFields<T> {
+    return Object.keys(selectedFields).reduce((acc, key) => {
+      acc[key] = parseInt(selectedFields[key], 10);
+      return acc;
+    }, {});
   }
 
-  private parseSortFromQueryString<T>(sort: string): Sort<T> {
-    const parsed = JSON.parse(sort);
-    return Object.keys(parsed).reduce((acc, key) => {
-      acc[key] = (parsed[key] as string).toUpperCase() === 'ASC' ? 1 : -1;
+  private parseSort<T>(sort: Sort): { [P in keyof T]?: SortOrder } {
+    return Object.keys(sort).reduce((acc, key) => {
+      acc[key] = sort[key].toUpperCase() === 'ASC' ? 1 : -1;
       return acc;
     }, {});
   }

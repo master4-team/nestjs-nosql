@@ -1,31 +1,30 @@
-import { Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { Role } from '../../../common/decorators/roles';
 import { LeanModel } from '../../../common/types';
 import { BaseModel, BaseSchema, getSchemaOptions } from '../../base/base.model';
-import { Property } from '../../../common/decorators/property';
 
 export type UserDocument = HydratedDocument<UserModel>;
 export type User = LeanModel<UserDocument>;
 
 @Schema(getSchemaOptions({ collection: 'user' }))
 export class UserModel extends BaseModel {
-  @Property({ required: true })
+  @Prop({ required: true })
   name: string;
 
-  @Property({ required: false, unique: true, sparse: true })
+  @Prop({ required: false, unique: true, sparse: true })
   email?: string;
 
-  @Property({ required: false })
+  @Prop({ required: false })
   phone?: string;
 
-  @Property({ required: true, unique: true })
+  @Prop({ required: true, unique: true })
   username: string;
 
-  @Property({ required: true, apiProperty: { enable: false } })
+  @Prop({ required: true, apiProperty: { enable: false } })
   password: string;
 
-  @Property({ required: true, unique: true, type: String, enum: Role })
+  @Prop({ required: true, unique: true, type: String, enum: Role })
   role: Role;
 }
 

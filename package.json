@@ -7,19 +7,20 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"e2e/**/*.ts\"",
     "start": "NODE_ENV=dev nest start",
     "start:dev": "NODE_ENV=dev nest start --watch",
     "start:debug": "NODE_ENV=dev nest start --debug --watch",
     "start:prod": "NODE_ENV=prod node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest",
+    "test": "jest --no-coverage",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/e2e/jest-e2e.json",
+    "test:e2e": "jest --config ./e2e/jest-e2e.json",
     "initDb": "node -r tsconfig-paths/register -r ts-node/register ./src/scripts/index.ts",
-    "doc": "npx @compodoc/compodoc -p tsconfig.json -s"
+    "doc": "npx @compodoc/compodoc -p tsconfig.json -s",
+    "prepare": "husky install"
   },
   "dependencies": {
     "@compodoc/compodoc": "^1.1.19",
@@ -94,7 +95,6 @@
       "ts"
     ],
     "roots": [
-      "test",
       "src"
     ],
     "testRegex": ".*\\.spec\\.ts$",
@@ -102,12 +102,12 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s",
+      "**/*.(controller|service).(t|j)s",
       "!**/node_modules/**",
       "!**/test/**"
     ],
     "collectCoverage": true,
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "./coverage",
     "testEnvironment": "node"
   }
 }

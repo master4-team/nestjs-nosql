@@ -1,16 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { DeleteResult } from 'mongodb';
-import { Model, Document, FilterQuery } from 'mongoose';
+import { Model, Document, FilterQuery, ProjectionFields } from 'mongoose';
 import { LeanModel } from '../../common/types';
-import { ParsedFilterQuery, Projections } from '../filter/types';
-import { LoggerService } from '../logger/logger.service';
+import { ParsedFilterQuery } from '../filter/filter.types';
 
 @Injectable()
-export abstract class BaseService<
-  L extends LoggerService,
-  T extends Document,
-  K = LeanModel<T>,
-> {
+export abstract class BaseService<T extends Document, K = LeanModel<T>> {
   static readonly leanOptions = {
     autopopulate: true,
     virtuals: true,
@@ -18,16 +13,13 @@ export abstract class BaseService<
     versionKey: false,
   };
 
-  protected constructor(
-    protected readonly model: Model<T>,
-    protected readonly logger: L,
-  ) {}
+  protected constructor(protected readonly model: Model<T>) {}
 
   async count(filter: FilterQuery<K> = {}): Promise<number> {
     return await this.model.count(filter);
   }
 
-  async findAll(projections: Projections<K> = {}): Promise<K[]> {
+  async findAll(projections: ProjectionFields<K> = {}): Promise<K[]> {
     return (await this.model
       .find({}, projections || {})
       .lean(BaseService.leanOptions)
@@ -46,7 +38,7 @@ export abstract class BaseService<
 
   async findByIds(
     _ids: string[],
-    projections: Projections<K> = {},
+    projections: ProjectionFields<K> = {},
   ): Promise<K[]> {
     return (await this.model
       .find({ __id: { $in: _ids } }, projections || {})
@@ -54,7 +46,7 @@ export abstract class BaseService<
       .exec()) as K[];
   }
 
-  async findById(_id: string, projections?: Projections<K>): Promise<K> {
+  async findById(_id: string, projections?: ProjectionFields<K>): Promise<K> {
     return (await this.model
       .findById(_id, projections || {})
       .lean(BaseService.leanOptions)
@@ -73,7 +65,6 @@ export abstract class BaseService<
     const createdItem = new this.model({ ...createDto });
     return (await createdItem.save()).toObject({
       transform: true,
-      // virtuals: true,
       versionKey: false,
     });
   }
@@ -81,7 +72,7 @@ export abstract class BaseService<
   async updateById(
     _id: string,
     updateDto: Partial<K>,
-    projections?: Projections<K>,
+    projections?: ProjectionFields<K>,
   ): Promise<K> {
     return (await this.model
       .findByIdAndUpdate(_id, updateDto, {
@@ -125,5 +116,9 @@ export abstract class BaseService<
 
   async deleteByIds(_ids: string[]): Promise<DeleteResult> {
     return this.model.deleteMany({ _id: { $in: _ids } }).exec();
+  }
+
+  async deleteAll(): Promise<DeleteResult> {
+    return this.model.deleteMany().exec();
   }
 }

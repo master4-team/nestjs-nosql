@@ -1,9 +1,8 @@
-import { Schema, SchemaFactory, SchemaOptions } from '@nestjs/mongoose';
-import mongoose, { Document, SchemaTypes } from 'mongoose';
+import { Schema, SchemaFactory, SchemaOptions, Prop } from '@nestjs/mongoose';
+import mongoose, { SchemaTypes } from 'mongoose';
 import mongooseLeanDefaults from 'mongoose-lean-defaults';
 import { mongooseLeanGetters } from 'mongoose-lean-getters';
 import { mongooseLeanVirtuals } from 'mongoose-lean-virtuals';
-import { Property } from '../../common/decorators/property';
 
 export const getSchemaOptions = (schemaOptions: SchemaOptions = {}) => {
   const options: SchemaOptions = {
@@ -14,14 +13,14 @@ export const getSchemaOptions = (schemaOptions: SchemaOptions = {}) => {
 };
 
 @Schema(getSchemaOptions())
-export class BaseModel extends Document {
-  @Property({ required: false, type: SchemaTypes.ObjectId, auto: true })
+export class BaseModel {
+  @Prop({ required: false, type: SchemaTypes.ObjectId, auto: true })
   _id?: string;
 
-  @Property({ required: false })
+  @Prop({ required: false })
   createdAt?: Date;
 
-  @Property({ required: false })
+  @Prop({ required: false })
   updatedAt?: Date;
 }
 

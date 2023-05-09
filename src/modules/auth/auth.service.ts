@@ -1,26 +1,21 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { DeleteResult } from 'mongodb';
-import { FilterQuery } from 'mongoose';
-import {
-  ErrorMessageEnum,
-  UNAUTHORIZED,
-  USER_EXISTED,
-} from '../../common/constants/errors';
+import { HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Role } from '../../common/decorators/roles';
 import { BusinessException } from '../../common/exceptions';
-import { EncryptionAndHashService } from '../encryptionAndHash/encrypttionAndHash.service';
-import { Token } from '../models/token/token.model';
-import { TokenService } from '../models/token/token.service';
-import { User } from '../models/user/user.model';
-import { UserService } from '../models/user/user.service';
 import { RegisterDto } from './auth.dto';
-import { ValidatedUser } from './types';
+import { LoginPayload, RegisterPayload, ValidatedUser } from './auth.types';
+import hideOrOmitFields from '../../utils/hideOrOmitFields';
+import { ErrorMessageEnum } from '../../common/types';
+import { UserService } from '../models/user/user.service';
+import { RefreshTokenService } from '../models/refreshToken/refreshToken.service';
+import { EncryptionAndHashService } from '../encryptionAndHash/encrypttionAndHash.service';
+import { FilterQuery } from 'mongoose';
+import { User } from '../models/user/user.model';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UserService,
-    private readonly tokenService: TokenService,
+    private readonly refreshTokenService: RefreshTokenService,
     private readonly encryptionAndHashService: EncryptionAndHashService,
   ) {}
 
@@ -30,9 +25,7 @@ export class AuthService {
   ): Promise<ValidatedUser> {
     const user = await this.usersService.findOne({ filter: { username } });
     if (!user) {
-      throw new UnauthorizedException(
-        UNAUTHORIZED.messages[ErrorMessageEnum.invalidCredentials],
-      );
+      throw new UnauthorizedException(ErrorMessageEnum.invalidCredentials);
     }
 
     const isPasswordValid = await this.encryptionAndHashService.compare(
@@ -40,9 +33,7 @@ export class AuthService {
       user.password,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException(
-        UNAUTHORIZED.messages[ErrorMessageEnum.invalidCredentials],
-      );
+      throw new UnauthorizedException(ErrorMessageEnum.invalidCredentials);
     }
     return {
       username: user.username,
@@ -51,19 +42,11 @@ export class AuthService {
     };
   }
 
-  async validateAccessToken(accessToken: string): Promise<boolean> {
-    return this.tokenService.verifyAccessToken(accessToken);
+  async login(validatedUser: ValidatedUser): Promise<LoginPayload> {
+    return await this.refreshTokenService.createToken(validatedUser);
   }
 
-  async login(loginDto: ValidatedUser): Promise<Token> {
-    return await this.tokenService.createToken(loginDto);
-  }
-
-  async logout(userId: string): Promise<DeleteResult> {
-    return await this.tokenService.revoke(userId);
-  }
-
-  async register(registerDto: RegisterDto): Promise<User> {
+  async register(registerDto: RegisterDto): Promise<RegisterPayload> {
     const { username, email, password } = registerDto;
     let filter: FilterQuery<User> = { username };
     if (email) {
@@ -71,14 +54,19 @@ export class AuthService {
     }
     const user = await this.usersService.findOne({ filter });
     if (user) {
-      throw new BusinessException(USER_EXISTED, ErrorMessageEnum.userExisted);
+      throw new BusinessException(
+        ErrorMessageEnum.userExisted,
+        HttpStatus.CONFLICT,
+      );
     }
     const hashedPassword = await this.encryptionAndHashService.hash(password);
 
-    return await this.usersService.create({
+    const result = await this.usersService.create({
       ...registerDto,
       password: hashedPassword,
       role: Role.USER,
     });
+
+    return hideOrOmitFields(result, ['password'], true) as RegisterPayload;
   }
 }
