@@ -1,5 +1,11 @@
 import { Document } from 'mongoose';
 
+export enum EnvironmentEnum {
+  DEV = 'dev',
+  PROD = 'prod',
+  E2E = 'e2e',
+}
+
 export enum ErrorMessageEnum {
   invalidFilter = 'invalidFilter',
   invalidCredentials = 'invalidCredentials',

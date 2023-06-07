@@ -1,4 +1,7 @@
+import { EnvironmentEnum } from '../../common/types';
+
 export default () => ({
+  env: process.env.NODE_ENV || EnvironmentEnum.DEV,
   port: parseInt(process.env.PORT, 10) || 4000,
   host: process.env.HOST,
   database: {
